@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Project Nexus — Chat</title>
+  <style>
+    :root {
+      font-family: system-ui, Segoe UI, sans-serif;
+      background: #0f1419;
+      color: #e7e9ea;
+    }
+    body {
+      max-width: 42rem;
+      margin: 0 auto;
+      padding: 1.5rem;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 0 0 1rem;
+    }
+    label {
+      display: block;
+      font-size: 0.75rem;
+      color: #8b98a5;
+      margin-bottom: 0.35rem;
+    }
+    #apiBase {
+      width: 100%;
+      padding: 0.5rem 0.65rem;
+      border-radius: 6px;
+      border: 1px solid #38444d;
+      background: #16181c;
+      color: inherit;
+      font-size: 0.875rem;
+      box-sizing: border-box;
+      margin-bottom: 1rem;
+    }
+    #log {
+      border: 1px solid #38444d;
+      border-radius: 8px;
+      background: #16181c;
+      padding: 1rem;
+      height: min(50vh, 360px);
+      overflow-y: auto;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    .msg {
+      margin-bottom: 0.85rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .msg.user strong { color: #1d9bf0; }
+    .msg.assistant strong { color: #00ba7c; }
+    .msg.error { color: #f4212e; }
+    form {
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-end;
+    }
+    #input {
+      flex: 1;
+      min-height: 2.75rem;
+      padding: 0.5rem 0.65rem;
+      border-radius: 8px;
+      border: 1px solid #38444d;
+      background: #16181c;
+      color: inherit;
+      font-size: 1rem;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 0.55rem 1rem;
+      border-radius: 8px;
+      border: none;
+      background: #1d9bf0;
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    button.secondary {
+      background: #38444d;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.5rem;
+    }
+    .thread-info {
+      font-size: 0.7rem;
+      color: #8b98a5;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .hint {
+      font-size: 0.75rem;
+      color: #8b98a5;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="row">
+    <h1 style="margin:0">DeepAgent chat</h1>
+    <button type="button" class="secondary" id="newChat">New conversation</button>
+  </div>
+  <p class="thread-info" id="threadInfo" title=""></p>
+  <label for="apiBase">API base URL</label>
+  <input id="apiBase" type="url" value="http://127.0.0.1:8000" autocomplete="off" />
+
+  <div id="log" aria-live="polite"></div>
+
+  <form id="form">
+    <textarea id="input" rows="2" placeholder="Message…" required></textarea>
+    <button type="submit" id="send">Send</button>
+  </form>
+
+  <p class="hint">Run the API: <code>uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000</code></p>
+
+  <script>
+    const log = document.getElementById("log");
+    const form = document.getElementById("form");
+    const input = document.getElementById("input");
+    const apiBase = document.getElementById("apiBase");
+    const sendBtn = document.getElementById("send");
+    const newChatBtn = document.getElementById("newChat");
+    const threadInfo = document.getElementById("threadInfo");
+
+    const THREAD_KEY = "nexus_thread_id";
+    const transcriptKey = (id) => "nexus_transcript_" + id;
+
+    let threadId = localStorage.getItem(THREAD_KEY) || null;
+    /** @type {{ role: string, text: string, className?: string }[]} */
+    let entries = [];
+
+    function persistTranscript() {
+      if (!threadId) return;
+      try {
+        localStorage.setItem(transcriptKey(threadId), JSON.stringify(entries));
+      } catch (e) {
+        console.warn("Could not save transcript", e);
+      }
+    }
+
+    function loadTranscript() {
+      entries = [];
+      if (!threadId) return;
+      try {
+        const raw = localStorage.getItem(transcriptKey(threadId));
+        if (raw) entries = JSON.parse(raw);
+      } catch (e) {
+        entries = [];
+      }
+    }
+
+    function renderLog() {
+      log.innerHTML = "";
+      for (const e of entries) {
+        const div = document.createElement("div");
+        div.className =
+          "msg " + (e.className || (e.role === "user" ? "user" : "assistant"));
+        const label = e.role === "user" ? "You" : "Assistant";
+        div.innerHTML = "<strong>" + label + "</strong><br>" + escapeHtml(e.text);
+        log.appendChild(div);
+      }
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function append(role, text, className = "") {
+      entries.push({ role, text, className: className || undefined });
+      renderLog();
+      persistTranscript();
+    }
+
+    function updateThreadUi() {
+      if (threadId) {
+        threadInfo.textContent = "Thread: " + threadId;
+        threadInfo.title = threadId;
+      } else {
+        threadInfo.textContent = "Thread: (new — send a message to start)";
+        threadInfo.title = "";
+      }
+    }
+
+    loadTranscript();
+    renderLog();
+    updateThreadUi();
+
+    function escapeHtml(s) {
+      const d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    newChatBtn.addEventListener("click", () => {
+      const prev = localStorage.getItem(THREAD_KEY);
+      if (prev) {
+        localStorage.removeItem(transcriptKey(prev));
+      }
+      localStorage.removeItem(THREAD_KEY);
+      threadId = null;
+      entries = [];
+      log.innerHTML = "";
+      updateThreadUi();
+      input.focus();
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+
+      const base = apiBase.value.replace(/\/$/, "");
+      append("user", text);
+      input.value = "";
+      sendBtn.disabled = true;
+
+      try {
+        const payload = { message: text };
+        if (threadId) payload.thread_id = threadId;
+
+        const res = await fetch(base + "/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          append("assistant", data.detail || res.statusText || "Request failed", "error");
+          return;
+        }
+        if (data.thread_id) {
+          threadId = data.thread_id;
+          localStorage.setItem(THREAD_KEY, threadId);
+          updateThreadUi();
+        }
+        const reply =
+          typeof data.response === "string"
+            ? data.response
+            : JSON.stringify(data.response ?? data, null, 2);
+        append("assistant", reply);
+      } catch (err) {
+        append("assistant", String(err.message || err), "error");
+      } finally {
+        sendBtn.disabled = false;
+        input.focus();
+      }
+    });
+  </script>
+</body>
+</html>
