@@ -2,6 +2,16 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Nexus: Telegram Bot",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/tg_bot.py",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
       "name": "Backend: FastAPI (uvicorn)",
       "type": "debugpy",
       "request": "launch",
@@ -18,6 +28,12 @@
       "envFile": "${workspaceFolder}/.env",
       "console": "integratedTerminal",
       "justMyCode": true
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Nexus: Full Stack",
+      "configurations": ["Backend: FastAPI (uvicorn)", "Nexus: Telegram Bot"]
     }
   ]
 }

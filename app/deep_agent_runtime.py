@@ -1,5 +1,4 @@
 import json
-from urllib.error import URLError
 from urllib.request import urlopen
 from uuid import uuid4
 
@@ -26,32 +25,26 @@ social_subagent = CompiledSubAgent(
 
 @tool
 def get_current_datetime() -> str:
-    """Return current UTC date/time from external time APIs."""
+    """Return current UTC date/time, falling back to system clock if external APIs are unavailable."""
+    from datetime import datetime, timezone
+
     sources = [
         "https://worldtimeapi.org/api/timezone/Etc/UTC",
         "https://timeapi.io/api/Time/current/zone?timeZone=UTC",
     ]
 
-    errors: list[str] = []
     for url in sources:
         try:
             with urlopen(url, timeout=5) as response:
                 payload = json.loads(response.read().decode("utf-8"))
-
             if "datetime" in payload:
                 return str(payload["datetime"])
-
             if "dateTime" in payload:
                 return str(payload["dateTime"])
+        except Exception:
+            continue
 
-            errors.append(f"{url}: missing datetime field")
-        except (URLError, TimeoutError, json.JSONDecodeError) as exc:
-            errors.append(f"{url}: {exc}")
-
-    raise RuntimeError(
-        "Unable to fetch current time from external sources. "
-        + " | ".join(errors)
-    )
+    return datetime.now(timezone.utc).isoformat()
 
 SYSTEM_PROMPT = """
 You are Nexus, Vivek's assistant built on the DeepAgent harness.
@@ -76,6 +69,9 @@ Execution model:
 - You command specialized subagents.
 - Delegate with 'task' when a specialist is better suited, then synthesize results clearly.
 - For article-to-social workflows, delegate to 'social_media_generator'.
+- For anything requiring current information, web search, news, recent events, prices,
+  or fact-checking, delegate to 'deep_researcher'. Do not answer from memory when the
+  information could be outdated or the user wants live data.
 
 Time awareness:
 - Use 'get_current_datetime' when freshness, dates, deadlines, or current context matter.

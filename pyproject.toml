@@ -11,5 +11,7 @@ dependencies = [
     "fastapi>=0.135.3",
     "langchain-community>=0.4.1",
     "langchain-openai>=1.1.12",
+    "python-telegram-bot>=22.7",
+    "telegram>=0.0.1",
     "uvicorn[standard]>=0.43.0",
 ]
