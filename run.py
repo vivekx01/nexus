@@ -14,8 +14,11 @@ import os
 def main() -> None:
     env = os.environ.copy()
 
-    host = os.environ.get("HOST", "127.0.0.1")
     port = os.environ.get("PORT", "8000")
+    # On Render (and most cloud platforms), PORT is injected — bind to 0.0.0.0.
+    # Locally PORT is not set, so default to 127.0.0.1.
+    default_host = "0.0.0.0" if "PORT" in os.environ else "127.0.0.1"
+    host = os.environ.get("HOST", default_host)
 
     uvicorn_cmd = [
         sys.executable, "-m", "uvicorn", "app.main:app",
