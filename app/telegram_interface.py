@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, ContextTypes, MessageHandler, filters
 
+from .context import tg_bot, tg_chat_id
 from .db import init_db, is_allowed, is_public_mode
 from .deep_agent_runtime import run_chat
 
@@ -80,12 +81,15 @@ async def _handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     logger.info("Incoming message from chat_id=%s", chat_id)
 
+    tg_bot.set(context.bot)
+    tg_chat_id.set(chat_id)
+
     stop_typing = asyncio.Event()
     typing_task = asyncio.create_task(_keep_typing(context, chat_id, stop_typing))
 
     try:
         thread_id = f"tg_{chat_id}"
-        result = await run_chat(message=text, thread_id=thread_id)
+        result = await run_chat(message=text, thread_id=thread_id, medium="telegram")
     finally:
         stop_typing.set()
         typing_task.cancel()

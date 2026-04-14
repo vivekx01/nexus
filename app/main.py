@@ -43,6 +43,7 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     message: str
     thread_id: str | None = None
+    medium: str = "web"
 
 
 @app.post("/chat")
@@ -50,6 +51,7 @@ async def chat(request: ChatRequest):
     return await run_chat(
         message=request.message,
         thread_id=request.thread_id,
+        medium=request.medium,
     )
 
 
