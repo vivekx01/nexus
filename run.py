@@ -14,19 +14,23 @@ import os
 def main() -> None:
     env = os.environ.copy()
 
+    host = os.environ.get("HOST", "127.0.0.1")
+    port = os.environ.get("PORT", "8000")
+
+    uvicorn_cmd = [
+        sys.executable, "-m", "uvicorn", "app.main:app",
+        "--host", host,
+        "--port", port,
+    ]
+    if os.environ.get("RELOAD", "false").lower() == "true":
+        uvicorn_cmd.append("--reload")
+
     procs = [
-        subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "app.main:app",
-             "--host", "127.0.0.1", "--port", "8000", "--reload"],
-            env=env,
-        ),
-        subprocess.Popen(
-            [sys.executable, "tg_bot.py"],
-            env=env,
-        ),
+        subprocess.Popen(uvicorn_cmd, env=env),
+        subprocess.Popen([sys.executable, "tg_bot.py"], env=env),
     ]
 
-    print("Nexus running — FastAPI on :8000 | Telegram bot polling")
+    print(f"Nexus running — FastAPI on {host}:{port} | Telegram bot polling")
     print("Ctrl+C to stop both.\n")
 
     try:
