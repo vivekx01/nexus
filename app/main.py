@@ -2,11 +2,12 @@ import os
 import secrets
 
 import deepagents
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
+from telegram import Bot
 
 from .db import (
     grant_access, init_db, is_allowed, is_public_mode,
@@ -135,6 +136,55 @@ async def admin_revoke(chat_id: int):
     if not is_allowed(chat_id):
         raise HTTPException(status_code=404, detail="User not found")
     revoke_access(chat_id)
+
+
+# ---------------------------------------------------------------------------
+# Prowl notifications
+# ---------------------------------------------------------------------------
+
+class JobMatch(BaseModel):
+    title: str
+    company: str
+    score: int
+    verdict: str
+    url: str
+
+
+class ProwlNotifyRequest(BaseModel):
+    event: str
+    chat_id: str
+    count: int
+    jobs: list[JobMatch]
+    link: str | None = None
+
+
+@app.post("/notify/prowl")
+async def prowl_notify(body: ProwlNotifyRequest, x_api_key: str = Header(...)):
+    expected = os.environ.get("PROWL_NOTIFY_SECRET")
+    if not expected or not secrets.compare_digest(x_api_key, expected):
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    token = os.environ.get("TG_BOT_TOKEN")
+    if not token:
+        raise HTTPException(status_code=503, detail="TG_BOT_TOKEN not configured")
+
+    lines = [
+        f"<b>Prowl found {body.count} new job recommendation{'s' if body.count != 1 else ''} for you</b>",
+        "",
+    ]
+    for i, job in enumerate(body.jobs, 1):
+        verdict_tag = "Strong match" if job.verdict == "apply" else "Worth a look"
+        lines.append(f"{i}. <b>{job.title}</b> at <b>{job.company}</b>")
+        lines.append(f"   Match score: {job.score}/100 — {verdict_tag}")
+        lines.append(f"   <a href=\"{job.url}\">View job</a>")
+        lines.append("")
+    if body.link:
+        lines.append(f"<a href=\"{body.link}\">See all recommendations on Prowl</a>")
+
+    bot = Bot(token=token)
+    await bot.send_message(chat_id=int(body.chat_id), text="\n".join(lines), parse_mode="HTML")
+
+    return {"status": "sent"}
 
 
 # ---------------------------------------------------------------------------
