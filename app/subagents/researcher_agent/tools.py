@@ -7,6 +7,9 @@ search_tool = DuckDuckGoSearchRun()
 # Free Scraper (Basic)
 async def scrape_website(url: str) -> str:
     """Scrapes a URL and returns the text content."""
-    loader = WebBaseLoader(url)
-    docs = loader.load()
-    return docs[0].page_content
+    try:
+        loader = WebBaseLoader(url)
+        docs = loader.load()
+        return docs[0].page_content
+    except Exception as e:
+        return f"Could not scrape {url}: {type(e).__name__}: {e}"

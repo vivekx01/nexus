@@ -90,6 +90,12 @@ async def _handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     try:
         thread_id = f"tg_{chat_id}"
         result = await run_chat(message=text, thread_id=thread_id, medium="telegram")
+    except Exception:
+        logger.exception("run_chat failed for chat_id=%s", chat_id)
+        await update.message.reply_text(
+            "Something went wrong processing that — please try again."
+        )
+        return
     finally:
         stop_typing.set()
         typing_task.cancel()
